@@ -179,7 +179,7 @@ export const utils = {
     const text = content.replace(/<[^>]*>/g, '') // Remove HTML tags
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
   },
-  
+ 
   // Generate slug
   generateSlug: (text) => {
     return text
