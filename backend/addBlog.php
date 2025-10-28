@@ -55,7 +55,8 @@ function addBlog($db) {
         $tags = isset($_POST['tags']) ? sanitizeInput($_POST['tags']) : '';
         $meta_title = isset($_POST['meta_title']) ? sanitizeInput($_POST['meta_title']) : $title;
         $meta_description = isset($_POST['meta_description']) ? sanitizeInput($_POST['meta_description']) : $excerpt;
-        $is_featured = isset($_POST['is_featured']) ? (bool)$_POST['is_featured'] : false;
+        // Properly handle boolean from FormData (FormData sends "true"/"false" as strings or "1"/"0")
+        $is_featured = isset($_POST['is_featured']) ? filter_var($_POST['is_featured'], FILTER_VALIDATE_BOOLEAN) : false;
         $status = isset($_POST['status']) ? sanitizeInput($_POST['status']) : 'draft';
         
         // Enhanced validation with detailed error messages
@@ -200,7 +201,8 @@ function updateBlog($db) {
             $tags = isset($_POST['tags']) ? sanitizeInput($_POST['tags']) : '';
             $meta_title = isset($_POST['meta_title']) ? sanitizeInput($_POST['meta_title']) : null;
             $meta_description = isset($_POST['meta_description']) ? sanitizeInput($_POST['meta_description']) : null;
-            $is_featured = isset($_POST['is_featured']) ? (bool)$_POST['is_featured'] : false;
+            // Properly handle boolean from FormData (FormData sends "true"/"false" as strings or "1"/"0")
+            $is_featured = isset($_POST['is_featured']) ? filter_var($_POST['is_featured'], FILTER_VALIDATE_BOOLEAN) : false;
             $status = isset($_POST['status']) ? sanitizeInput($_POST['status']) : 'draft';
             
             error_log("Parsed FormData - ID: $id, Title: $title, Category: $category_id");

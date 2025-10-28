@@ -11,13 +11,7 @@ export default function Document() {
           href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" 
           rel="stylesheet" 
         />
-        {/* Preload critical hero image */}
-        <link 
-          rel="preload"
-          href="/uploads/1758873063_a-book-1760998_1280.jpg"
-          as="image"
-          media="(min-width: 768px)"
-        />
+        {/* Note: Image preloading is handled per-page to avoid unused preload warnings */}
       </Head>
       <body>
         <Main />
