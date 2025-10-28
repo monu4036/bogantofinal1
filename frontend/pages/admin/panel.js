@@ -252,16 +252,24 @@ const AdminPanel = () => {
       formPayload.append('content', formData.content)
       formPayload.append('category_id', formData.category_id)
       
-      // Add other fields
-      Object.keys(formData).forEach(key => {
-        if (!['title', 'content', 'category_id', 'id'].includes(key)) {  // Skip already added fields
-          if ((key === 'featured_image' || key === 'featured_image_2') && formData[key]) {
-            formPayload.append(key, formData[key])
-          } else if (key !== 'featured_image' && key !== 'featured_image_2' && key !== 'related_books') {
-            formPayload.append(key, formData[key])
-          }
-        }
-      })
+      // Add other fields with proper type handling
+      if (formData.excerpt) formPayload.append('excerpt', formData.excerpt)
+      if (formData.slug) formPayload.append('slug', formData.slug)
+      if (formData.tags) formPayload.append('tags', formData.tags)
+      if (formData.meta_title) formPayload.append('meta_title', formData.meta_title)
+      if (formData.meta_description) formPayload.append('meta_description', formData.meta_description)
+      
+      // Properly handle boolean and status
+      formPayload.append('is_featured', formData.is_featured ? '1' : '0')
+      formPayload.append('status', formData.status)
+      
+      // Add featured images if present
+      if (formData.featured_image) {
+        formPayload.append('featured_image', formData.featured_image)
+      }
+      if (formData.featured_image_2) {
+        formPayload.append('featured_image_2', formData.featured_image_2)
+      }
 
       // Add related books and their cover images
       if (validBooks.length > 0) {
@@ -313,11 +321,17 @@ const AdminPanel = () => {
       showToast(successMessage)
       resetForm()
       setShowForm(false)
-      fetchBlogs()
+      
+      // Wait a bit before fetching to prevent route navigation issues
+      setTimeout(() => {
+        fetchBlogs()
+      }, 100)
       
     } catch (error) {
       console.error('Error saving blog:', error)
-      showToast(error.response?.data?.error || 'Failed to save blog', 'error')
+      const errorMessage = error?.error || error?.message || 'Failed to save blog'
+      const errorDetails = error?.details ? ` (${error.details.join(', ')})` : ''
+      showToast(errorMessage + errorDetails, 'error')
     } finally {
       setLoading(false)
     }
