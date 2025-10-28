@@ -186,6 +186,15 @@ function updateBlog($db) {
     error_log('Content-Type: ' . ($_SERVER['CONTENT_TYPE'] ?? 'not set'));
     
     try {
+        // Parse PUT multipart/form-data if necessary
+        // PHP doesn't automatically populate $_POST and $_FILES for PUT requests
+        if ($_SERVER['REQUEST_METHOD'] === 'PUT' && empty($_POST)) {
+            error_log('Parsing PUT multipart/form-data manually');
+            parsePutFormData();
+            error_log('After parsing - POST data: ' . print_r($_POST, true));
+            error_log('After parsing - FILES data: ' . print_r($_FILES, true));
+        }
+        
         // Check if this is a form data request (with files) or JSON request
         $isFormData = isset($_POST['id']);
         
@@ -390,6 +399,113 @@ function deleteBlog($db, $id) {
         error_log('General Exception in deleteBlog: ' . $e->getMessage());
         error_log('Error trace: ' . $e->getTraceAsString());
         sendResponse(['error' => 'An unexpected error occurred while deleting', 'details' => $e->getMessage()], 500);
+    }
+}
+
+/**
+ * Parse multipart/form-data for PUT requests
+ * PHP doesn't automatically populate $_POST and $_FILES for PUT requests
+ * This function manually parses the request body and populates those superglobals
+ */
+function parsePutFormData() {
+    global $_POST, $_FILES;
+    
+    // Get the raw input
+    $rawInput = file_get_contents('php://input');
+    
+    // Get the content type and extract boundary
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? '';
+    
+    if (strpos($contentType, 'multipart/form-data') === false) {
+        error_log('Not multipart/form-data, skipping parsing');
+        return;
+    }
+    
+    // Extract boundary from content type
+    preg_match('/boundary=(.*)$/', $contentType, $matches);
+    if (!isset($matches[1])) {
+        error_log('Could not find boundary in content type');
+        return;
+    }
+    
+    $boundary = $matches[1];
+    
+    // Split the raw input by boundary
+    $parts = preg_split("/-+$boundary/", $rawInput);
+    array_pop($parts); // Remove last empty part
+    
+    foreach ($parts as $part) {
+        // Skip empty parts
+        if (empty(trim($part))) {
+            continue;
+        }
+        
+        // Split headers and content
+        if (strpos($part, "\r\n\r\n") === false) {
+            continue;
+        }
+        
+        list($rawHeaders, $body) = explode("\r\n\r\n", $part, 2);
+        
+        // Remove trailing \r\n from body
+        $body = substr($body, 0, strlen($body) - 2);
+        
+        // Parse headers
+        $rawHeaders = explode("\r\n", $rawHeaders);
+        $headers = [];
+        foreach ($rawHeaders as $header) {
+            if (strpos($header, ':') !== false) {
+                list($name, $value) = explode(':', $header, 2);
+                $headers[strtolower($name)] = trim($value);
+            }
+        }
+        
+        // Get the Content-Disposition header
+        if (!isset($headers['content-disposition'])) {
+            continue;
+        }
+        
+        // Parse the content disposition
+        $contentDisposition = $headers['content-disposition'];
+        
+        // Extract field name
+        if (!preg_match('/name="([^"]*)"/', $contentDisposition, $nameMatch)) {
+            continue;
+        }
+        $fieldName = $nameMatch[1];
+        
+        // Check if this is a file field
+        if (preg_match('/filename="([^"]*)"/', $contentDisposition, $filenameMatch)) {
+            // This is a file upload
+            $filename = $filenameMatch[1];
+            
+            // Skip if no filename (empty file input)
+            if (empty($filename)) {
+                continue;
+            }
+            
+            // Create a temporary file
+            $tmpName = tempnam(sys_get_temp_dir(), 'php_upload_');
+            file_put_contents($tmpName, $body);
+            
+            // Get the content type
+            $fileType = isset($headers['content-type']) ? $headers['content-type'] : 'application/octet-stream';
+            
+            // Populate $_FILES array
+            $_FILES[$fieldName] = [
+                'name' => $filename,
+                'type' => $fileType,
+                'tmp_name' => $tmpName,
+                'error' => UPLOAD_ERR_OK,
+                'size' => strlen($body)
+            ];
+            
+            error_log("Parsed file field: $fieldName = $filename (" . strlen($body) . " bytes)");
+        } else {
+            // This is a regular field
+            $_POST[$fieldName] = $body;
+            error_log("Parsed regular field: $fieldName = $body");
+        }
     }
 }
 
