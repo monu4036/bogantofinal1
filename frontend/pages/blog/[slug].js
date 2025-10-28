@@ -627,31 +627,23 @@ function BlogDetailPage({
                           key={book.id}
                           className="flex gap-3 pb-4 border-b border-gray-100 last:border-b-0 last:pb-0 group hover:bg-gray-50 p-2 rounded-lg transition-colors"
                         >
-                          <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden">
+                          <div className="w-12 h-16 flex-shrink-0 rounded overflow-hidden bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center relative">
                             {book.cover_image ? (
-                              <Image
-                                src={utils.getImageUrl(book.cover_image)}
+                              <img
+                                src={book.cover_image}
                                 alt={book.title}
-                                width={48}
-                                height={64}
+                                className="w-full h-full object-cover absolute inset-0"
                                 loading="lazy"
-                                className="w-full h-full object-cover"
                                 onError={(e) => {
-                                  // Fallback to gradient background if image fails to load
+                                  // Hide image on error to show fallback gradient
                                   e.target.style.display = "none";
-                                  e.target.nextSibling.style.display = "flex";
+                                  console.log('Failed to load book cover image:', book.cover_image);
                                 }}
                               />
                             ) : null}
-                            <div
-                              className={`w-full h-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center ${
-                                book.cover_image ? "hidden" : "flex"
-                              }`}
-                            >
-                              <span className="text-white text-xs font-bold">
-                                📚
-                              </span>
-                            </div>
+                            <span className="text-white text-xs font-bold z-10">
+                              📚
+                            </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <h5 className="font-medium text-gray-900 text-sm leading-tight mb-1 group-hover:text-orange-600 transition-colors">

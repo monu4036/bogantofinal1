@@ -518,6 +518,7 @@ function addRelatedBooks($db, $blog_id, $books) {
         $delete_stmt = $db->prepare($delete_query);
         $delete_stmt->bindParam(':blog_id', $blog_id, PDO::PARAM_INT);
         $delete_stmt->execute();
+        error_log("Deleted existing related books for blog_id: $blog_id");
         
         // Add new related books with cover_image support
         $insert_query = "INSERT INTO related_books (blog_id, title, author, purchase_link, cover_image, description, price) 
@@ -530,15 +531,45 @@ function addRelatedBooks($db, $blog_id, $books) {
                 $cover_image = null;
                 $cover_image_key = 'book_cover_' . $index;
                 
-                if (isset($_FILES[$cover_image_key]) && $_FILES[$cover_image_key]['error'] === UPLOAD_ERR_OK) {
-                    $cover_image = uploadFileToSubfolder($_FILES[$cover_image_key], 'book_covers');
+                error_log("Processing book $index: {$book['title']}");
+                error_log("Looking for file upload with key: $cover_image_key");
+                
+                // Try to upload new cover image
+                if (isset($_FILES[$cover_image_key])) {
+                    error_log("File upload found for $cover_image_key, error code: " . $_FILES[$cover_image_key]['error']);
+                    
+                    if ($_FILES[$cover_image_key]['error'] === UPLOAD_ERR_OK) {
+                        $cover_image = uploadFileToSubfolder($_FILES[$cover_image_key], 'book_covers');
+                        if ($cover_image) {
+                            error_log("Successfully uploaded cover image to: $cover_image");
+                        } else {
+                            error_log("Failed to upload cover image for book: {$book['title']}");
+                        }
+                    } else if ($_FILES[$cover_image_key]['error'] !== UPLOAD_ERR_NO_FILE) {
+                        error_log("File upload error for $cover_image_key: " . $_FILES[$cover_image_key]['error']);
+                    }
+                } else {
+                    error_log("No file upload found for $cover_image_key");
                 }
                 
-                // Use provided cover_image if no file was uploaded
+                // Use provided cover_image or cover_image_url if no file was uploaded
                 if (!$cover_image && isset($book['cover_image'])) {
                     $cover_image = $book['cover_image'];
+                    error_log("Using provided cover_image from book data: $cover_image");
                     // Filter out external URLs (only allow uploaded images or null)
                     if (strpos($cover_image, 'http') === 0 && strpos($cover_image, '/uploads/') === false) {
+                        error_log("Filtered out external URL: $cover_image");
+                        $cover_image = null;
+                    }
+                }
+                
+                // Also check for cover_image_url (used when editing existing books)
+                if (!$cover_image && isset($book['cover_image_url'])) {
+                    $cover_image = $book['cover_image_url'];
+                    error_log("Using provided cover_image_url from book data: $cover_image");
+                    // Filter out external URLs (only allow uploaded images or null)
+                    if (strpos($cover_image, 'http') === 0 && strpos($cover_image, '/uploads/') === false) {
+                        error_log("Filtered out external URL from cover_image_url: $cover_image");
                         $cover_image = null;
                     }
                 }
@@ -550,6 +581,8 @@ function addRelatedBooks($db, $blog_id, $books) {
                 $description = isset($book['description']) ? trim($book['description']) : '';
                 $price = isset($book['price']) ? trim($book['price']) : '';
                 
+                error_log("Inserting book: $title with cover_image: " . ($cover_image ?? 'NULL'));
+                
                 $insert_stmt->bindParam(':blog_id', $blog_id, PDO::PARAM_INT);
                 $insert_stmt->bindParam(':title', $title);
                 $insert_stmt->bindParam(':author', $author);
@@ -560,12 +593,18 @@ function addRelatedBooks($db, $blog_id, $books) {
                 $insert_stmt->execute();
                 
                 $books_added++;
+                error_log("Successfully added related book: $title (total added: $books_added)");
+            } else {
+                error_log("Skipping book $index - missing required fields (title or purchase_link)");
             }
         }
+        
+        error_log("Total related books added for blog_id $blog_id: $books_added");
         
     } catch (PDOException $e) {
         // Log error but don't fail the main operation
         error_log('Failed to add related books: ' . $e->getMessage());
+        error_log('PDO Error trace: ' . $e->getTraceAsString());
     }
     
     return $books_added;
@@ -579,12 +618,18 @@ function uploadFileToSubfolder($file, $subfolder = '') {
     if ($subfolder) {
         $upload_dir .= $subfolder . '/';
         if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
+            error_log("Creating directory: $upload_dir");
+            if (!mkdir($upload_dir, 0755, true)) {
+                error_log("Failed to create directory: $upload_dir");
+                return false;
+            }
+            error_log("Successfully created directory: $upload_dir");
         }
     }
     
     // Check for upload errors
     if ($file['error'] !== UPLOAD_ERR_OK) {
+        error_log("File upload error code: " . $file['error']);
         return false;
     }
     
@@ -593,12 +638,14 @@ function uploadFileToSubfolder($file, $subfolder = '') {
     $file_type = $file['type'];
     
     if (!in_array($file_type, $allowed_types)) {
+        error_log("Invalid file type: $file_type (allowed: " . implode(', ', $allowed_types) . ")");
         return false;
     }
     
     // Validate file size (5MB max)
     $max_size = 5 * 1024 * 1024; // 5MB
     if ($file['size'] > $max_size) {
+        error_log("File size exceeds maximum: " . $file['size'] . " bytes (max: $max_size bytes)");
         return false;
     }
     
@@ -607,12 +654,23 @@ function uploadFileToSubfolder($file, $subfolder = '') {
     $filename = uniqid() . '_' . time() . '.' . $extension;
     $file_path = $upload_dir . $filename;
     
+    error_log("Attempting to move uploaded file to: $file_path");
+    
+    // Check if upload directory is writable
+    if (!is_writable($upload_dir)) {
+        error_log("Upload directory is not writable: $upload_dir");
+        return false;
+    }
+    
     // Move uploaded file
     if (move_uploaded_file($file['tmp_name'], $file_path)) {
         // Return relative path from webroot
-        return '/uploads/' . ($subfolder ? $subfolder . '/' : '') . $filename;
+        $relative_path = '/uploads/' . ($subfolder ? $subfolder . '/' : '') . $filename;
+        error_log("File uploaded successfully: $relative_path");
+        return $relative_path;
     }
     
+    error_log("Failed to move uploaded file from: " . $file['tmp_name'] . " to: $file_path");
     return false;
 }
 ?>
