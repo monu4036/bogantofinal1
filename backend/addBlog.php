@@ -556,10 +556,19 @@ function addRelatedBooks($db, $blog_id, $books) {
                 if (!$cover_image && isset($book['cover_image'])) {
                     $cover_image = $book['cover_image'];
                     error_log("Using provided cover_image from book data: $cover_image");
-                    // Filter out external URLs (only allow uploaded images or null)
-                    if (strpos($cover_image, 'http') === 0 && strpos($cover_image, '/uploads/') === false) {
-                        error_log("Filtered out external URL: $cover_image");
-                        $cover_image = null;
+                    
+                    // Convert full URL to relative path if needed
+                    if (strpos($cover_image, 'http') === 0) {
+                        // Check if it's our uploads URL
+                        if (strpos($cover_image, '/uploads/') !== false) {
+                            // Extract the relative path
+                            $cover_image = substr($cover_image, strpos($cover_image, '/uploads/'));
+                            error_log("Converted full URL to relative path: $cover_image");
+                        } else {
+                            // Filter out external URLs (only allow uploaded images or null)
+                            error_log("Filtered out external URL: $cover_image");
+                            $cover_image = null;
+                        }
                     }
                 }
                 
@@ -567,10 +576,19 @@ function addRelatedBooks($db, $blog_id, $books) {
                 if (!$cover_image && isset($book['cover_image_url'])) {
                     $cover_image = $book['cover_image_url'];
                     error_log("Using provided cover_image_url from book data: $cover_image");
-                    // Filter out external URLs (only allow uploaded images or null)
-                    if (strpos($cover_image, 'http') === 0 && strpos($cover_image, '/uploads/') === false) {
-                        error_log("Filtered out external URL from cover_image_url: $cover_image");
-                        $cover_image = null;
+                    
+                    // Convert full URL to relative path if needed
+                    if (strpos($cover_image, 'http') === 0) {
+                        // Check if it's our uploads URL
+                        if (strpos($cover_image, '/uploads/') !== false) {
+                            // Extract the relative path
+                            $cover_image = substr($cover_image, strpos($cover_image, '/uploads/'));
+                            error_log("Converted full URL from cover_image_url to relative path: $cover_image");
+                        } else {
+                            // Filter out external URLs (only allow uploaded images or null)
+                            error_log("Filtered out external URL from cover_image_url: $cover_image");
+                            $cover_image = null;
+                        }
                     }
                 }
                 

@@ -273,9 +273,13 @@ const AdminPanel = () => {
 
       // Add related books and their cover images
       if (validBooks.length > 0) {
-        // Add related books data without cover_image files
+        // Add related books data, preserving existing cover_image_url for updates
         const booksData = validBooks.map(book => {
-          const { cover_image, ...bookData } = book
+          const { cover_image, cover_image_url, ...bookData } = book
+          // If updating and no new file, preserve the existing image URL
+          if (cover_image_url && !(cover_image instanceof File)) {
+            return { ...bookData, cover_image: cover_image_url }
+          }
           return bookData
         })
         formPayload.append('related_books', JSON.stringify(booksData))
